@@ -31,8 +31,10 @@ class TestChat(basic.LineReceiver):
             return
         if not self.login:
             self._login(line)
-        elif line.startswith('/join'):
-            self._join_room(line[5:])
+        elif line.startswith('/'):
+            command, *args = line[1:].split(' ')
+            if command in self.factory.supported_command:
+                getattr(self, self.factory.supported_command[command])(*args)
         else:
             if self.room is not None:
                 for person in self.factory.rooms[self.room]:
@@ -60,6 +62,7 @@ class TestChat(basic.LineReceiver):
 factory = protocol.ServerFactory()
 factory.protocol = TestChat
 factory.clients = {}
+factory.supported_command = {'join': '_join_room'}
 
 application = service.Application("test_chat_server")
 internet.TCPServer(8989, factory).setServiceParent(application)
