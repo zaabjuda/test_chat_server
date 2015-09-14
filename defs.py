@@ -23,13 +23,11 @@ class ChatErrorState(Enum):
 class ChatMessage(StrictDict):
     msg = f.String(required=True)
     channel = f.String(required=True)
+    args = optlist(f.String)
+
+
+class ChatDataResponse(ChatMessage):
     author = f.String(required=False)
-    args = optlist(f.String)
-
-
-class ChatDataResponse(StrictDict):
-    msg = f.String()
-    args = optlist(f.String)
 
 
 class ChatErrorResponse(StrictDict):

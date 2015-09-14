@@ -32,12 +32,14 @@ class TestChat(basic.LineReceiver):
                 if people != self.login:
                     current = self.factory.clients[people]
                     protocol = current['protocol']
-                    self._send_message(protocol, "user {} has quit the chat room".format(self.login), is_system=True)
+                    resp = ChatDataResponse(msg=self._ser_message("user {} has quit the chat room".format(self.login),
+                                                                  is_system=True), channel=room, author=self.login)
+                    self._write_usual_message(protocol, data=resp)
 
-    def _send_message(self, protocol, message, is_system=False):
+    def _ser_message(self, message, is_system=False):
         if is_system:
             message = self.server_prefix + ' ' + message
-        protocol.sendLine(to_bytes(message))
+        return message
 
     def _join_room(self, room):
         if room.isdigit():
@@ -56,14 +58,16 @@ class TestChat(basic.LineReceiver):
         self.factory.rooms[room].append(self.login)
         self.factory.clients[self.login]["rooms"].append(room)
 
-        self.transport.write(to_bytes("entering room: {}\n".format(room)))
+        self._write_service_message(data=ChatDataResponse(msg="entering room: {}".format(room), channel='0'))
 
         for person in self.factory.rooms[room]:
             if self.login != person:
                 # search for this client
                 client = self.factory.clients[person]
                 protocol = client['protocol']
-                self._send_message(protocol, "user {} joined chat".format(self.login), is_system=True)
+                resp = ChatDataResponse(msg=self._ser_message("user {} joined chat".format(self.login), is_system=True),
+                                        channel=room, author=self.login)
+                self._write_usual_message(protocol, data=resp)
 
     def _leave_room(self, room):
         if room not in self.rooms:
@@ -78,8 +82,9 @@ class TestChat(basic.LineReceiver):
             if person != self.login:
                 client = self.factory.clients[person]
                 protocol = client['protocol']
-                self._send_message(protocol, "user {} has left chat".format(self.login), is_system=True)
-        self.rooms = None
+                resp = ChatDataResponse(msg=self._ser_message("user {} has left chat".format(self.login),
+                                                              is_system=True), channel=room, author=self.login)
+                self._write_usual_message(protocol, data=resp)
 
     def _quit(self):
         for room in self.rooms:
@@ -127,8 +132,8 @@ class TestChat(basic.LineReceiver):
                         if person != self.login:
                             client = self.factory.clients[person]
                             protocol = client['protocol']
-                            resp = ChatMessage(msg=msg_data.msg, channel=room, author=self.login)
-                            protocol.sendLine(to_bytes(json.dumps(resp.to_dict())))
+                            resp = ChatDataResponse(msg=msg_data.msg, channel=room, author=self.login)
+                            self._write_usual_message(protocol, resp)
 
     def _login(self, login):
         # check if login already exists
@@ -141,13 +146,18 @@ class TestChat(basic.LineReceiver):
         # TODO Load user rooms from storage
         user_rooms = []
         self.factory.clients[self.login] = {'protocol': self, 'rooms': user_rooms}
-        self.transport.write(to_bytes("Hello {}!\n".format(self.login)))
+        self._write_service_message(data=ChatDataResponse(msg="Hello {}!".format(self.login), channel='0'))
+
+    def _write_usual_message(self, protocol, data):
+        resp = ChatResponse(data=data)
+        protocol.sendLine(to_bytes(json.dumps(resp.to_dict())))
 
     def _write_service_message(self, data=None, err=None):
         resp = {}
         resp['error'] = err
         resp['data'] = data
         self.transport.write(to_bytes(json.dumps(ChatResponse(**resp).to_dict()) + '\n'))
+
 
 factory = protocol.ServerFactory()
 factory.protocol = TestChat
