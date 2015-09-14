@@ -9,7 +9,7 @@ from twisted.application import service, internet
 from twisted.internet import reactor, protocol
 from twisted.protocols import basic
 
-from defs import ChatMessage, ChatDataResponse, ChatErrorResponse, ChatResponse, ChatErrorState
+from defs import ChatMessage, ChatDataResponse, ChatErrorResponse, ChatResponse, ChatErrorState, supported_commands
 from util import to_bytes
 
 
@@ -167,7 +167,7 @@ factory = protocol.ServerFactory()
 factory.protocol = TestChat
 factory.clients = {}
 factory.rooms = {}
-factory.supported_command = {'JOIN': '_join_room', 'LEFT': '_leave_room', 'LOGIN': '_login', 'QUIT': '_quit'}
+factory.supported_command = supported_commands
 
 application = service.Application("test_chat_server")
 internet.TCPServer(8989, factory).setServiceParent(application)

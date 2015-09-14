@@ -8,6 +8,8 @@ from strictdict import StrictDict
 from strictdict import fields as f
 from strictdict.api import optlist, opt
 
+supported_commands = {'JOIN': '_join_room', 'LEFT': '_leave_room', 'LOGIN': '_login', 'QUIT': '_quit'}
+
 
 @unique
 class ChatErrorState(Enum):

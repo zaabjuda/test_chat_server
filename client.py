@@ -2,10 +2,14 @@
 __author__ = "Dmitry Zhiltsov"
 __copyright__ = "Copyright 2015, Dmitry Zhiltsov"
 
+import json
 from sys import stdout
 
 from twisted.internet import reactor, protocol, stdio
 from twisted.protocols import basic
+
+from defs import ChatMessage, ChatResponse, supported_commands, ChatErrorState
+from util import to_bytes
 
 host = 'localhost'
 port = 8989
@@ -14,11 +18,25 @@ console_delimiter = b'\n'
 
 class ChatClient(protocol.Protocol):
     def dataReceived(self, data):
-        stdout.write(data.decode())
+        resp_msg = ChatResponse(**json.loads(data.decode()))
+        if resp_msg.data:
+            msg = resp_msg.data.msg
+            if resp_msg.data.channel == '0':
+                channel = 'SERVICE'
+                response_msg = "SENDER: {} {}".format(channel, msg)
+            else:
+                channel = resp_msg.data.channel
+                author = resp_msg.data.author
+                response_msg = "{}@{} ---> {}: ".format(channel, author, msg)
+        elif resp_msg.error:
+            response_msg = "Server Error: {} Message: {}".format(resp_msg.error.error,  resp_msg.error.msg)
+        else:
+            return
+        stdout.write(response_msg+'\n')
         stdout.flush()
 
     def sendData(self, data):
-        self.transport.write(data + console_delimiter)
+        self.transport.write(to_bytes(data) + console_delimiter)
 
 
 class ChatClientFactory(protocol.ClientFactory):
@@ -41,11 +59,38 @@ class Console(basic.LineReceiver):
     def __init__(self, factory):
         self.factory = factory
 
+    def _make_msg(self, line):
+        line = line.decode()
+        if str(line).startswith('/msg '):
+            command, *args = line[1:].split(' ')
+            channel = args[0]
+            try:
+                msg = ' '.join(args[1:])
+                self_message = "{}@-=ME=- ---> {}: ".format(channel, msg)
+                stdout.write(self_message+'\n')
+                stdout.flush()
+            except IndexError as exc:
+                return
+        elif line.startswith('/'):
+            command, *args = line[1:].split(' ')
+            if command in supported_commands:
+                channel = '0'
+                msg = line
+            else:
+                print('Command not supported')
+                return
+        else:
+            print('Command not supported')
+            return
+        w = ChatMessage(msg=msg, channel=channel)
+
+        self.factory.client.sendData(json.dumps(w.to_dict()))
+
     def lineReceived(self, line):
-        if line == 'quit':
+        if line == '/quit':
             self.quit()
         else:
-            self.factory.client.sendData(line)
+            self._make_msg(line)
 
     def quit(self):
         reactor.stop()
