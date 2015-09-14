@@ -19,7 +19,15 @@ class TestChat(basic.LineReceiver):
         self.transport.write(to_bytes("Welcome to the test_chat_server\n"))
 
     def connectionLost(self, reason):
-        print("Lost a client!")
+        client = self.factory.clients[self.login]
+        room = client['room']
+        protocol = client['protocol']
+        if room is not None:
+            for people in self.factory.rooms[room]:
+                if people != self.login:
+                    current = self.factory.clients[people]
+                    protocol = current['protocol']
+                    self._send_message(protocol, "user {} has quit the chat room".format(self.login))
 
     def _send_message(self, protocol, message, is_system=False):
         if is_system:
@@ -67,6 +75,13 @@ class TestChat(basic.LineReceiver):
                     self._send_message(protocol, "user {} has left chat".format(self.login), is_system=True)
         self.room = None
 
+    def _quit(self):
+        if self.room is not None:
+            self._leave_room()
+
+        self.transport.write(to_bytes('BYE!\n'))
+        self.transport.loseConnection()
+
     def lineReceived(self, line):
         line = line.decode()
         if len(line) == 0:
@@ -86,9 +101,6 @@ class TestChat(basic.LineReceiver):
                         protocol = client['protocol']
                         protocol.sendLine(to_bytes("{}: {}".format(self.login, line)))
 
-    def message(self, message):
-        self.transport.write(message + b'\n')
-
     def _login(self, login):
         # check if login already exists
         if login in self.factory.clients:
@@ -106,7 +118,7 @@ factory = protocol.ServerFactory()
 factory.protocol = TestChat
 factory.clients = {}
 factory.rooms = {}
-factory.supported_command = {'JOIN': '_join_room', 'LEFT': '_leave_room', 'LOGIN': '_login'}
+factory.supported_command = {'JOIN': '_join_room', 'LEFT': '_leave_room', 'LOGIN': '_login', 'QUIT': '_quit'}
 
 application = service.Application("test_chat_server")
 internet.TCPServer(8989, factory).setServiceParent(application)
