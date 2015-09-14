@@ -93,9 +93,13 @@ class TestChat(basic.LineReceiver):
         try:
             msg_data = ChatMessage(**json.loads(line))
         except ValidationError as e:
-            msg_data = ''
-            self._write_service_message(ChatErrorResponse(error=ChatErrorState.serialize_error,
-                                                              msg="Command not supported"))
+            self._write_service_message(err=ChatErrorResponse(error=ChatErrorState.protocol_error.value,
+                                                              msg="Protocol Error"))
+            return
+        except ValueError as e:
+            self._write_service_message(err=ChatErrorResponse(error=ChatErrorState.serialize_error.value,
+                                                              msg="Serialize error"))
+            return
         if len(msg_data.msg) == 0:
             return
         if msg_data.msg.startswith('/') and msg_data.channel == '0':
@@ -105,20 +109,26 @@ class TestChat(basic.LineReceiver):
                 try:
                     getattr(self, self.factory.supported_command[command])(*args)
                 except TypeError as e:
-                    self._write_service_message(ChatErrorResponse(error=ChatErrorState.command_syntax_failed,
+                    self._write_service_message(err=ChatErrorResponse(error=ChatErrorState.command_syntax_failed.value,
                                                            msg='Syntax error'))
             else:
-                self._write_service_message(ChatErrorResponse(error=ChatErrorState.command_not_found,
+                self._write_service_message(err=ChatErrorResponse(error=ChatErrorState.command_not_found.value,
                                                               msg="Command not supported"))
         elif not self.login:
             self.transport.write(to_bytes("Please use /LOGIN YOUR_NICKNAME to login\n"))
         else:
-            if self.rooms is not None:
-                for person in self.factory.rooms[self.rooms]:
-                    if person != self.login:
-                        client = self.factory.clients[person]
-                        protocol = client['protocol']
-                        protocol.sendLine(to_bytes("{}: {}".format(self.login, line)))
+            self._msg(msg_data)
+
+    def _msg(self, msg_data):
+        if msg_data.channel != '0':
+            room = msg_data.channel
+            if self.factory.rooms.get(room):
+                for person in self.factory.rooms[msg_data.channel]:
+                        if person != self.login:
+                            client = self.factory.clients[person]
+                            protocol = client['protocol']
+                            resp = ChatMessage(msg=msg_data.msg, channel=room, author=self.login)
+                            protocol.sendLine(to_bytes(json.dumps(resp.to_dict())))
 
     def _login(self, login):
         # check if login already exists
@@ -136,8 +146,8 @@ class TestChat(basic.LineReceiver):
     def _write_service_message(self, data=None, err=None):
         resp = {}
         resp['error'] = err
-        resp['data'] = err
-        self.transport.write(to_bytes(json.dumps(ChatResponse(**resp).to_dict())))
+        resp['data'] = data
+        self.transport.write(to_bytes(json.dumps(ChatResponse(**resp).to_dict()) + '\n'))
 
 factory = protocol.ServerFactory()
 factory.protocol = TestChat

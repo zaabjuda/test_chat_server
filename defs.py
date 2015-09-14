@@ -17,11 +17,13 @@ class ChatErrorState(Enum):
     room_name_invalid = 5
     unknow_error = 100
     serialize_error = 101
+    protocol_error = 102
 
 
 class ChatMessage(StrictDict):
     msg = f.String(required=True)
     channel = f.String(required=True)
+    author = f.String(required=False)
     args = optlist(f.String)
 
 
