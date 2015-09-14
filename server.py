@@ -11,7 +11,7 @@ from util import to_bytes
 
 class TestChat(basic.LineReceiver):
     def __init__(self):
-        self.room = None
+        self.rooms = []
         self.login = None
         self.server_prefix = "@ACHTUNG!!!"
 
@@ -20,14 +20,13 @@ class TestChat(basic.LineReceiver):
 
     def connectionLost(self, reason):
         client = self.factory.clients[self.login]
-        room = client['room']
-        protocol = client['protocol']
-        if room is not None:
+        rooms = client['rooms']
+        for room in rooms:
             for people in self.factory.rooms[room]:
                 if people != self.login:
                     current = self.factory.clients[people]
                     protocol = current['protocol']
-                    self._send_message(protocol, "user {} has quit the chat room".format(self.login))
+                    self._send_message(protocol, "user {} has quit the chat room".format(self.login), is_system=True)
 
     def _send_message(self, protocol, message, is_system=False):
         if is_system:
@@ -35,49 +34,49 @@ class TestChat(basic.LineReceiver):
         protocol.sendLine(to_bytes(message))
 
     def _join_room(self, room):
-        if self.room is not None:
+        if room in self.rooms:
             self.transport.write(to_bytes("You are already in a room\n"))
             return
 
         # check if room exists
         if room not in self.factory.rooms:
-            self.factory.rooms[room] = [self.login]
+            self.factory.rooms[room] = []
 
         # join room
-        self.room = room
+        self.rooms.append(room)
         self.factory.rooms[room].append(self.login)
-        self.factory.clients[self.login]["room"] = room
+        self.factory.clients[self.login]["rooms"].append(room)
 
         self.transport.write(to_bytes("entering room: {}\n".format(room)))
 
-        if self.room is not None:
-            for person in self.factory.rooms[self.room]:
+        if self.rooms is not None:
+            for person in self.factory.rooms[self.rooms]:
                 if self.login != person:
                     # search for this client
                     client = self.factory.clients[person]
                     protocol = client['protocol']
                     self._send_message(protocol, "user {} joined chat".format(self.login), is_system=True)
 
-    def _leave_room(self):
-        if self.room is None:
+    def _leave_room(self, room):
+        if room not in self.rooms:
             self.transport.write(to_bytes("You not in a room\n"))
             return
 
         # leave room
-        self.factory.rooms[self.room].remove(self.login)
+        self.factory.rooms[self.rooms].remove(self.login)
         self.factory.clients[self.login]["room"] = None
 
-        if self.room is not None:
-            for person in self.factory.rooms[self.room]:
+        if self.rooms is not None:
+            for person in self.factory.rooms[self.rooms]:
                 if person != self.login:
                     client = self.factory.clients[person]
                     protocol = client['protocol']
                     self._send_message(protocol, "user {} has left chat".format(self.login), is_system=True)
-        self.room = None
+        self.rooms = None
 
     def _quit(self):
-        if self.room is not None:
-            self._leave_room()
+        for room in self.rooms:
+            self._leave_room(room)
 
         self.transport.write(to_bytes('BYE!\n'))
         self.transport.loseConnection()
@@ -94,8 +93,8 @@ class TestChat(basic.LineReceiver):
         elif not self.login:
             self.transport.write(to_bytes("Please use /LOGIN YOUR_NICKNAME to login\n"))
         else:
-            if self.room is not None:
-                for person in self.factory.rooms[self.room]:
+            if self.rooms is not None:
+                for person in self.factory.rooms[self.rooms]:
                     if person != self.login:
                         client = self.factory.clients[person]
                         protocol = client['protocol']
@@ -109,8 +108,8 @@ class TestChat(basic.LineReceiver):
             return
 
         self.login = login
-        self.room = None
-        self.factory.clients[self.login] = {'protocol': self, 'room': self.room}
+        self.rooms = None
+        self.factory.clients[self.login] = {'protocol': self, 'room': self.rooms}
         self.transport.write(to_bytes("Hello {}!\n".format(self.login)))
 
 
