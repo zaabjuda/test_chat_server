@@ -8,6 +8,7 @@ from strictdict import StrictDict
 from strictdict import fields as f
 from strictdict.api import optlist, opt
 
+
 @unique
 class ChatErrorState(Enum):
     user_exist = 1

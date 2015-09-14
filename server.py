@@ -14,13 +14,15 @@ from util import to_bytes
 
 
 class TestChat(basic.LineReceiver):
+    delimiter = b'\n'
+
     def __init__(self):
         self.rooms = []
         self.login = None
         self.server_prefix = "@ACHTUNG!!!"
 
     def connectionMade(self):
-        self.transport.write(to_bytes("Welcome to the test_chat_server\n"))
+        self._write_service_message(data=ChatDataResponse(msg="Welcome to the test_chat_server", channel='0'))
 
     def connectionLost(self, reason):
         client = self.factory.clients.get(self.login)
@@ -95,6 +97,8 @@ class TestChat(basic.LineReceiver):
 
     def lineReceived(self, line):
         line = line.decode()
+        if len(line) == 0:
+            return
         try:
             msg_data = ChatMessage(**json.loads(line))
         except ValidationError as e:
