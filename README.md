@@ -74,3 +74,14 @@ Command login
 /LEFT <Room> - leave from room
 /QUIT - quit from all room and disconect on server
 /quit - quit fron client
+
+
+Run this shit
+--------------
+
+pip install -r requirements.txt
+python server.py
+
+Run client
+----------
+python client.py
