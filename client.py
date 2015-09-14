@@ -21,7 +21,7 @@ class ChatClient(protocol.Protocol):
     def dataReceived(self, data):
         try:
             resp_msg = ChatResponse(**json.loads(data.decode()))
-            stdout.write(resp_msg+'\n')
+            stdout.write(resp_msg + '\n')
             stdout.flush()
             return
         except (ValueError, ValidationError) as exc:
@@ -39,7 +39,7 @@ class ChatClient(protocol.Protocol):
             response_msg = "Server Error: {} Message: {}".format(resp_msg.error.error,  resp_msg.error.msg)
         else:
             return
-        stdout.write(response_msg+'\n')
+        stdout.write(response_msg + '\n')
         stdout.flush()
 
     def sendData(self, data):
@@ -74,7 +74,7 @@ class Console(basic.LineReceiver):
             try:
                 msg = ' '.join(args[1:])
                 self_message = "{}@-=ME=- ---> {}: ".format(channel, msg)
-                stdout.write(self_message+'\n')
+                stdout.write(self_message + '\n')
                 stdout.flush()
             except IndexError as exc:
                 return
