@@ -2,10 +2,14 @@
 __author__ = "Dmitry Zhiltsov"
 __copyright__ = "Copyright 2015, Dmitry Zhiltsov"
 
+import json
+
+from strictdict import ValidationError
 from twisted.application import service, internet
 from twisted.internet import reactor, protocol
 from twisted.protocols import basic
 
+from defs import ChatMessage, ChatDataResponse, ChatErrorResponse, ChatResponse, ChatErrorState
 from util import to_bytes
 
 
@@ -86,13 +90,26 @@ class TestChat(basic.LineReceiver):
 
     def lineReceived(self, line):
         line = line.decode()
-        if len(line) == 0:
+        try:
+            msg_data = ChatMessage(**json.loads(line))
+        except ValidationError as e:
+            msg_data = ''
+            self._write_service_message(ChatErrorResponse(error=ChatErrorState.serialize_error,
+                                                              msg="Command not supported"))
+        if len(msg_data.msg) == 0:
             return
-        if line.startswith('/'):
-            command, *args = line[1:].split(' ')
+        if msg_data.msg.startswith('/') and msg_data.channel == '0':
+            command, *args = msg_data.msg[1:].split(' ')
             args = [i for i in map(lambda x: x.strip(), args)]
             if command in self.factory.supported_command:
-                getattr(self, self.factory.supported_command[command])(*args)
+                try:
+                    getattr(self, self.factory.supported_command[command])(*args)
+                except TypeError as e:
+                    self._write_service_message(ChatErrorResponse(error=ChatErrorState.command_syntax_failed,
+                                                           msg='Syntax error'))
+            else:
+                self._write_service_message(ChatErrorResponse(error=ChatErrorState.command_not_found,
+                                                              msg="Command not supported"))
         elif not self.login:
             self.transport.write(to_bytes("Please use /LOGIN YOUR_NICKNAME to login\n"))
         else:
@@ -116,6 +133,11 @@ class TestChat(basic.LineReceiver):
         self.factory.clients[self.login] = {'protocol': self, 'rooms': user_rooms}
         self.transport.write(to_bytes("Hello {}!\n".format(self.login)))
 
+    def _write_service_message(self, data=None, err=None):
+        resp = {}
+        resp['error'] = err
+        resp['data'] = err
+        self.transport.write(to_bytes(json.dumps(ChatResponse(**resp).to_dict())))
 
 factory = protocol.ServerFactory()
 factory.protocol = TestChat
