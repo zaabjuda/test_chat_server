@@ -32,10 +32,13 @@ class TestChat(basic.LineReceiver):
 
     def _send_message(self, protocol, message, is_system=False):
         if is_system:
-            message = self.server_prefix + ' ' +message
+            message = self.server_prefix + ' ' + message
         protocol.sendLine(to_bytes(message))
 
     def _join_room(self, room):
+        if room.isdigit():
+            self.transport.write(to_bytes("Room name is invalid\n"))
+            return
         if room in self.rooms:
             self.transport.write(to_bytes("You are already in a room\n"))
             return
@@ -52,11 +55,11 @@ class TestChat(basic.LineReceiver):
         self.transport.write(to_bytes("entering room: {}\n".format(room)))
 
         for person in self.factory.rooms[room]:
-                if self.login != person:
-                    # search for this client
-                    client = self.factory.clients[person]
-                    protocol = client['protocol']
-                    self._send_message(protocol, "user {} joined chat".format(self.login), is_system=True)
+            if self.login != person:
+                # search for this client
+                client = self.factory.clients[person]
+                protocol = client['protocol']
+                self._send_message(protocol, "user {} joined chat".format(self.login), is_system=True)
 
     def _leave_room(self, room):
         if room not in self.rooms:
