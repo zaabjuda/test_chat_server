@@ -13,6 +13,7 @@ class TestChat(basic.LineReceiver):
     def __init__(self):
         self.room = None
         self.login = None
+        self.server_prefix = "@ACHTUNG!!!"
 
     def connectionMade(self):
         self.transport.write(to_bytes("Welcome to the test_chat_server\n"))
@@ -20,6 +21,11 @@ class TestChat(basic.LineReceiver):
 
     def connectionLost(self, reason):
         print("Lost a client!")
+
+    def _send_message(self, protocol, message, is_system=False):
+        if is_system:
+            message = self.server_prefix + ' ' +message
+        protocol.sendLine(to_bytes(message))
 
     def _join_room(self, room):
         if self.room is not None:
@@ -43,7 +49,24 @@ class TestChat(basic.LineReceiver):
                     # search for this client
                     client = self.factory.clients[person]
                     protocol = client['protocol']
-                    protocol.sendLine(to_bytes("@ACHTUNG!!! user {} joined chat".format(self.login)))
+                    self._send_message(protocol, "user {} joined chat".format(self.login), is_system=True)
+
+    def _leave_room(self):
+        if self.room is None:
+            self.transport.write(to_bytes("You not in a room\n"))
+            return
+
+        # leave room
+        self.factory.rooms[self.room].remove(self.login)
+        self.factory.clients[self.login]["room"] = None
+
+        if self.room is not None:
+            for person in self.factory.rooms[self.room]:
+                if person != self.login:
+                    client = self.factory.clients[person]
+                    protocol = client['protocol']
+                    self._send_message(protocol, "user {} has left chat".format(self.login), is_system=True)
+        self.room = None
 
     def lineReceived(self, line):
         line = line.decode()
@@ -84,7 +107,7 @@ factory = protocol.ServerFactory()
 factory.protocol = TestChat
 factory.clients = {}
 factory.rooms = {}
-factory.supported_command = {'join': '_join_room'}
+factory.supported_command = {'join': '_join_room', 'leave': '_leave_room'}
 
 application = service.Application("test_chat_server")
 internet.TCPServer(8989, factory).setServiceParent(application)
