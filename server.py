@@ -2,69 +2,52 @@
 __author__ = "Dmitry Zhiltsov"
 __copyright__ = "Copyright 2015, Dmitry Zhiltsov"
 
-import logging
-
-from tornado.ioloop import IOLoop
-from tornado.tcpserver import TCPServer
-
-class ChatConnection(object):
-    def __init__(self, stream, address, connections):
-        logging.info("receive a new connection from {}".format(address))
-        self.state = "AUTH"
-        self.name = None
-        self.connections = connections
-        self.stream = stream
-        self.address = address
-        self.stream.set_close_callback(self._on_close)
-        self.stream.read_until('\n', self._on_read_line)
-        stream.write("Please put your name: ", self._on_write_complete)
-
-    def _on_read_line(self, data):
-        logging.info("read a new line from {}".format(self.address))
-        if self.state == "AUTH":
-            name = data.rstrip()
-            if self.connections.has_key(name):
-                self.stream.write("Name already exists, choose another: ".format(self._on_write_complete))
-                return
-            self.stream.write("Welcome, {}!\n".format(name), self._on_write_complete)
-            self.connections[name] = self
-            self.name = name
-            self.state = "CHAT"
-            message = "{} has arrived\n".format(self.name)
-            for _,conn in self.connections.iteritems():
-                if conn != self:
-                    conn.stream.write(message, self._on_write_complete)
-        else:
-            message = "<{}> {}\n".format(self.name, data.rstrip())
-            for _,conn in self.connections.iteritems():
-                if conn != self:
-                    conn.stream.write(message, self._on_write_complete)
-
-    def _on_write_complete(self):
-        if not self.stream.reading():
-            self.stream.read_until('\n', self._on_read_line)
-
-    def _on_close(self):
-        logging.info("Client close connection {}".format(self.address))
-        if self.name != None:
-            del self.connections[self.name]
-            message = "{} has left\n".format(self.name)
-            for _,conn in self.connections.iteritems():
-                conn.stream.write(message, self._on_write_complete)
+from twisted.application import service, internet
+from twisted.internet import reactor, protocol
+from twisted.protocols import basic
 
 
-class ChatServer(TCPServer):
-    def handle_stream(self, stream, address):
-        ChatConnection(stream, address, chat_connections)
+class TestChat(basic.LineReceiver):
+    def __init__(self):
+        self.room = None
+        self.login = None
+
+    def connectionMade(self):
+        print("New client!")
+        self.factory.clients.append(self)
+
+    def connectionLost(self, reason):
+        print("Lost a client!")
+        self.factory.clients.remove(self)
+
+    def lineReceived(self, line):
+        print("received", repr(line))
+        for c in self.factory.clients:
+            c.message(line)
+
+    def message(self, message):
+        self.transport.write(message + b'\n')
+
+    def _login(self, login):
+        # check if login already exists
+        if login in self.factory.clients:
+            self.transport.write('Name taken.\n')
+            self.transport.write('Login Name?\n')
+            return
+
+        self.login = login
+        self.room = None
+        self.factory.clients[self.login] = {'protocol': self, 'room': self.room}
+        self.transport.write('Hello %s!\n' % self.login)
 
 
-def main(connections):
-    chat_server = ChatServer()
-    chat_server.listen(8989)
-    IOLoop.instance().start()
+factory = protocol.ServerFactory()
+factory.protocol = TestChat
+factory.clients = []
 
-
-chat_connections = {}
+application = service.Application("test_chat_server")
+internet.TCPServer(8989, factory).setServiceParent(application)
 
 if __name__ == '__main__':
-    main(chat_connections)
+    reactor.listenTCP(8989, factory)
+    reactor.run()
