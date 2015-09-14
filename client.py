@@ -5,6 +5,7 @@ __copyright__ = "Copyright 2015, Dmitry Zhiltsov"
 import json
 from sys import stdout
 
+from strictdict import ValidationError
 from twisted.internet import reactor, protocol, stdio
 from twisted.protocols import basic
 
@@ -18,7 +19,13 @@ console_delimiter = b'\n'
 
 class ChatClient(protocol.Protocol):
     def dataReceived(self, data):
-        resp_msg = ChatResponse(**json.loads(data.decode()))
+        try:
+            resp_msg = ChatResponse(**json.loads(data.decode()))
+            stdout.write(resp_msg+'\n')
+            stdout.flush()
+            return
+        except (ValueError, ValidationError) as exc:
+            response_msg = "Server Error: {} Message: {}".format(resp_msg.error.error,  resp_msg.error.msg)
         if resp_msg.data:
             msg = resp_msg.data.msg
             if resp_msg.data.channel == '0':
