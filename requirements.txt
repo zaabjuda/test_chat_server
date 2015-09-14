@@ -1,0 +1,5 @@
+msgpack-python==0.4.6
+pep8==1.6.2
+strictdict3==0.4.3
+Twisted==15.4.0
+zope.interface==4.1.2
