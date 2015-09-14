@@ -22,8 +22,28 @@ class TestChat(basic.LineReceiver):
         print("Lost a client!")
 
     def _join_room(self, room):
-        protocol = self.factory.clients[self.login]['protocol']
-        protocol.sendLine(to_bytes("Room not avaliable: {}".format(room)))
+        if self.room is not None:
+            self.transport.write(to_bytes("You are already in a room\n"))
+            return
+
+        # check if room exists
+        if room not in self.factory.rooms:
+            self.factory.rooms[room] = [self.login]
+
+        # join room
+        self.room = room
+        self.factory.rooms[room].append(self.login)
+        self.factory.clients[self.login]["room"] = room
+
+        self.transport.write(to_bytes("entering room: {}\n".format(room)))
+
+        if self.room is not None:
+            for person in self.factory.rooms[self.room]:
+                if self.login != person:
+                    # search for this client
+                    client = self.factory.clients[person]
+                    protocol = client['protocol']
+                    protocol.sendLine(to_bytes("@ACHTUNG!!! user {} joined chat".format(self.login)))
 
     def lineReceived(self, line):
         line = line.decode()
@@ -33,6 +53,7 @@ class TestChat(basic.LineReceiver):
             self._login(line)
         elif line.startswith('/'):
             command, *args = line[1:].split(' ')
+            args = [i for i in map(lambda x: x.strip(), args)]
             if command in self.factory.supported_command:
                 getattr(self, self.factory.supported_command[command])(*args)
         else:
@@ -62,6 +83,7 @@ class TestChat(basic.LineReceiver):
 factory = protocol.ServerFactory()
 factory.protocol = TestChat
 factory.clients = {}
+factory.rooms = {}
 factory.supported_command = {'join': '_join_room'}
 
 application = service.Application("test_chat_server")
