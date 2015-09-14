@@ -17,7 +17,6 @@ class TestChat(basic.LineReceiver):
 
     def connectionMade(self):
         self.transport.write(to_bytes("Welcome to the test_chat_server\n"))
-        self.transport.write(to_bytes("Login Name?\n"))
 
     def connectionLost(self, reason):
         print("Lost a client!")
@@ -72,13 +71,13 @@ class TestChat(basic.LineReceiver):
         line = line.decode()
         if len(line) == 0:
             return
-        if not self.login:
-            self._login(line)
-        elif line.startswith('/'):
+        if line.startswith('/'):
             command, *args = line[1:].split(' ')
             args = [i for i in map(lambda x: x.strip(), args)]
             if command in self.factory.supported_command:
                 getattr(self, self.factory.supported_command[command])(*args)
+        elif not self.login:
+            self.transport.write(to_bytes("Please use /LOGIN YOUR_NICKNAME to login\n"))
         else:
             if self.room is not None:
                 for person in self.factory.rooms[self.room]:
@@ -107,7 +106,7 @@ factory = protocol.ServerFactory()
 factory.protocol = TestChat
 factory.clients = {}
 factory.rooms = {}
-factory.supported_command = {'join': '_join_room', 'leave': '_leave_room'}
+factory.supported_command = {'JOIN': '_join_room', 'LEFT': '_leave_room', 'LOGIN': '_login'}
 
 application = service.Application("test_chat_server")
 internet.TCPServer(8989, factory).setServiceParent(application)
