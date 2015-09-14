@@ -62,3 +62,15 @@ Write message
 
 Ответ который увидят члены комнаты:
 {"data": {"channel": "Room1", "author": "Dima1", "msg": "Hello human!"}}
+
+
+Client usage
+------------
+
+Command login
+/LOGIN <NICK> - login by nick
+/JOIN <Room> - join room by room, if room not exists server create this room
+/msg <Room> <msg> - write message to room
+/LEFT <Room> - leave from room
+/QUIT - quit from all room and disconect on server
+/quit - quit fron client
