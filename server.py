@@ -19,7 +19,9 @@ class TestChat(basic.LineReceiver):
         self.transport.write(to_bytes("Welcome to the test_chat_server\n"))
 
     def connectionLost(self, reason):
-        client = self.factory.clients[self.login]
+        client = self.factory.clients.get(self.login)
+        if not client:
+            return
         rooms = client['rooms']
         for room in rooms:
             for people in self.factory.rooms[room]:
@@ -49,8 +51,7 @@ class TestChat(basic.LineReceiver):
 
         self.transport.write(to_bytes("entering room: {}\n".format(room)))
 
-        if self.rooms is not None:
-            for person in self.factory.rooms[self.rooms]:
+        for person in self.factory.rooms[room]:
                 if self.login != person:
                     # search for this client
                     client = self.factory.clients[person]
@@ -63,15 +64,14 @@ class TestChat(basic.LineReceiver):
             return
 
         # leave room
-        self.factory.rooms[self.rooms].remove(self.login)
+        self.factory.rooms[room].remove(self.login)
         self.factory.clients[self.login]["room"] = None
 
-        if self.rooms is not None:
-            for person in self.factory.rooms[self.rooms]:
-                if person != self.login:
-                    client = self.factory.clients[person]
-                    protocol = client['protocol']
-                    self._send_message(protocol, "user {} has left chat".format(self.login), is_system=True)
+        for person in self.factory.rooms[room]:
+            if person != self.login:
+                client = self.factory.clients[person]
+                protocol = client['protocol']
+                self._send_message(protocol, "user {} has left chat".format(self.login), is_system=True)
         self.rooms = None
 
     def _quit(self):
@@ -108,8 +108,9 @@ class TestChat(basic.LineReceiver):
             return
 
         self.login = login
-        self.rooms = None
-        self.factory.clients[self.login] = {'protocol': self, 'room': self.rooms}
+        # TODO Load user rooms from storage
+        user_rooms = []
+        self.factory.clients[self.login] = {'protocol': self, 'rooms': user_rooms}
         self.transport.write(to_bytes("Hello {}!\n".format(self.login)))
 
 
